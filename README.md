@@ -10,7 +10,7 @@
 
 ### Usage on an issue or pull request
 
-![alt text](image.png)
+![alt text](invokePreview.png)
 
 ### Usage within the kernel
 
