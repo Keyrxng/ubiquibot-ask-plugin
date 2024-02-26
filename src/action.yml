@@ -1,0 +1,21 @@
+name: 'Research Command Action'
+description: 'Performs the research command'
+inputs:
+  body:
+    description: 'The body of the issue comment'
+    required: true
+  issueNumber:
+    description: 'Issue number'
+    required: true
+  sender:
+    description: 'Sender of the command'
+    required: true
+  repo:
+    description: 'Repository name'
+    required: true
+  org:
+    description: 'Organization name'
+    required: true
+runs:
+  using: 'node.20.10.0' 
+  main: 'index.ts'

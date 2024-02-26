@@ -15,6 +15,7 @@
     "format:lint": "eslint --fix .",
     "format:prettier": "prettier --write .",
     "format:cspell": "cspell **/*",
+    "research": "tsx src/index.ts",
     "prepare": "husky install"
   },
   "keywords": [

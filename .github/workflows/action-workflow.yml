@@ -1,0 +1,40 @@
+name: Research Command
+on:
+  repository_dispatch:
+    types: [research-command]
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20.10.0"
+
+      - name: Yarn Install
+        run: yarn install
+
+      - name: Research
+        uses: ./src
+        id: research
+        with:
+          body: ${{ github.event.client_payload.body }}
+          issueNumber: ${{ github.event.client_payload.issueNumber }}
+          sender: ${{ github.event.client_payload.sender }}
+          repo: ${{ github.event.client_payload.repo }}
+          org: ${{ github.event.client_payload.org }}
+
+      - name: Comment
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.issues.createComment({
+              issue_number: ${{ github.event.client_payload.issueNumber }},
+              owner: ${{ github.event.client_payload.org }},
+              repo: ${{ github.event.client_payload.repo }},
+              body: ${{ steps.research.outputs.answer }}
+            })

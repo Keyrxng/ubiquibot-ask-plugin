@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable sonarjs/no-duplicate-string */
+
 import { GitHubContext } from "ubiquibot-kernel";
 import { Comment, StreamlinedComment, UserType } from "../types/response";
 
-/* eslint-disable sonarjs/no-duplicate-string */
 export function wait(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -23,13 +25,17 @@ export async function checkRateLimitGit(headers: { "x-ratelimit-remaining"?: str
   return remainingRequests;
 }
 
-export async function getAllIssueComments(
-  event: GitHubContext<"issue_comment.created">,
-  issueNumber: number,
-  format: "raw" | "html" | "text" | "full" = "raw"
-): Promise<Comment[]> {
+export async function getAllIssueComments(event: any, issueNumber: number, format: "raw" | "html" | "text" | "full" = "raw"): Promise<Comment[]> {
   const payload = event.payload;
   const octokit = event.octokit;
+
+  if (!octokit) {
+    throw new Error("No octokit provided");
+  }
+
+  if (!payload) {
+    throw new Error("No payload provided");
+  }
 
   const result: Comment[] = [];
   let shouldFetch = true;
@@ -48,7 +54,7 @@ export async function getAllIssueComments(
       });
 
       if (response?.data?.length > 0) {
-        response.data.forEach((item) => {
+        response.data.forEach((item: unknown) => {
           result.push(item as Comment);
         });
         pageNumber++;
@@ -98,7 +104,7 @@ export async function getPullByNumber(event: GitHubContext<"issue_comment.create
 
 // Strips out all links from the body of an issue or pull request and fetches the conversational context from each linked issue or pull request
 // eslint-disable-next-line sonarjs/cognitive-complexity
-export async function getAllLinkedIssuesAndPullsInBody(event: GitHubContext<"issue_comment.created">, issueNumber: number) {
+export async function getAllLinkedIssuesAndPullsInBody(event: any, issueNumber: number) {
   const context = event;
   const logger = console;
 

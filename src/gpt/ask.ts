@@ -4,11 +4,6 @@ import { errorDiff } from "../utils/errorDiff";
 import { getAllIssueComments, getAllLinkedIssuesAndPullsInBody } from "../utils/getIssueComments";
 import { StreamlinedComment, UserType } from "../types/response";
 import { configGenerator, BotConfig } from "@ubiquibot/configuration";
-// had to pull from the kernel as copying the files over was
-// causing incompatibility issues when invoking ask in the kernel
-// unsure if that's due to locally linked packages or will be an issue
-import { GitHubContext } from "ubiquibot-kernel";
-// TODO: is this required to be imported from the kernel when in production?
 
 export const sysMsg = `You are the UbiquityAI, designed to provide accurate technical answers. \n
 Whenever appropriate, format your response using GitHub Flavored Markdown. Utilize tables, lists, and code blocks for clear and organized answers. \n
@@ -67,7 +62,8 @@ Example:[
  * @param linkedIssueStreamlined an array of comments in the form of { login: string, body: string }
  */
 export async function decideContextGPT(
-  event: GitHubContext<"issue_comment.created">,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  event: unknown | any,
   chatHistory: CreateChatCompletionRequestMessage[],
   streamlined: StreamlinedComment[],
   linkedPRStreamlined: StreamlinedComment[],
