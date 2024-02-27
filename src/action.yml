@@ -17,5 +17,5 @@ inputs:
     description: 'Organization name'
     required: true
 runs:
-  using: 'node.20.10.0' 
+  using: 'node20' 
   main: 'index.ts'
