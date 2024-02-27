@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "author": "Ubiquity DAO",
   "license": "MIT",
+  "type": "module",
   "engines": {
     "node": ">=20.10.0"
   },
