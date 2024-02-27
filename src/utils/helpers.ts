@@ -30,15 +30,11 @@ export async function getUbiquiBotConfig(octokit: Octokit, owner: string, repo: 
 }
 
 async function fetchConfig(octokit: Octokit, owner: string, repo: string): Promise<UbiquiBotConfig | null> {
-  const response = await octokit.rest.repos
-    .getContent({
-      owner,
-      repo,
-      path: ".github/ubiquibot-config.yml",
-    })
-    .catch((error) => {
-      throw new Error(`Error fetching config: ${error}`);
-    });
+  const response = await octokit.rest.repos.getContent({
+    owner,
+    repo,
+    path: ".github/ubiquibot-config.yml",
+  });
 
   // Check if the response data is a file and has a content property
   if ("content" in response.data && typeof response.data.content === "string") {

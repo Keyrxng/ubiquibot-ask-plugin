@@ -22,5 +22,3 @@ runs:
     - name: Exec Research Command
       run: npx tsx src/index.ts "${{ inputs.body }}" ${{ inputs.issueNumber }} ${{ inputs.sender }} ${{ inputs.repo }} ${{ inputs.org }}
       shell: bash
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
