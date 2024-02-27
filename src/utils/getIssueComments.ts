@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable sonarjs/no-duplicate-string */
 
-import { GitHubContext } from "ubiquibot-kernel";
+import { Octokit } from "octokit";
 import { Comment, StreamlinedComment, UserType } from "../types/response";
 
 export function wait(ms: number) {
@@ -25,16 +25,15 @@ export async function checkRateLimitGit(headers: { "x-ratelimit-remaining"?: str
   return remainingRequests;
 }
 
-export async function getAllIssueComments(event: any, issueNumber: number, format: "raw" | "html" | "text" | "full" = "raw"): Promise<Comment[]> {
-  const payload = event.payload;
-  const octokit = event.octokit;
-
+export async function getAllIssueComments(
+  octokit: Octokit,
+  repo: string,
+  owner: string,
+  issueNumber: number,
+  format: "raw" | "html" | "text" | "full" = "raw"
+): Promise<Comment[]> {
   if (!octokit) {
     throw new Error("No octokit provided");
-  }
-
-  if (!payload) {
-    throw new Error("No payload provided");
   }
 
   const result: Comment[] = [];
@@ -43,8 +42,8 @@ export async function getAllIssueComments(event: any, issueNumber: number, forma
   try {
     while (shouldFetch) {
       const response = await octokit.rest.issues.listComments({
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
+        owner,
+        repo,
         issue_number: issueNumber,
         per_page: 100,
         page: pageNumber,
@@ -69,30 +68,28 @@ export async function getAllIssueComments(event: any, issueNumber: number, forma
   return result;
 }
 
-export async function getIssueByNumber(event: GitHubContext<"issue_comment.created">, issueNumber: number) {
+export async function getIssueByNumber(octokit: Octokit, repo: string, owner: string, issueNumber: number) {
   const logger = console;
-  const payload = event.payload;
-  const octokit = event.octokit;
   try {
-    const { data: issue } = await octokit.rest.issues.get({
-      owner: payload.repository.owner.login,
-      repo: payload.repository.name,
+    const { data: _issue } = await octokit.rest.issues.get({
+      owner,
+      repo,
       issue_number: issueNumber,
     });
-    return issue;
+    return _issue;
   } catch (e: unknown) {
     logger.debug(`Fetching issue failed! reason: ${e}`);
     return;
   }
 }
 
-export async function getPullByNumber(event: GitHubContext<"issue_comment.created">, pullNumber: number) {
+export async function getPullByNumber(octokit: Octokit, repo: string, owner: string, pullNumber: number) {
   const logger = console;
-  const payload = event.payload;
+
   try {
-    const { data: pull } = await event.octokit.rest.pulls.get({
-      owner: payload.repository.owner.login,
-      repo: payload.repository.name,
+    const { data: pull } = await octokit.rest.pulls.get({
+      owner,
+      repo,
       pull_number: pullNumber,
     });
     return pull;
@@ -104,11 +101,10 @@ export async function getPullByNumber(event: GitHubContext<"issue_comment.create
 
 // Strips out all links from the body of an issue or pull request and fetches the conversational context from each linked issue or pull request
 // eslint-disable-next-line sonarjs/cognitive-complexity
-export async function getAllLinkedIssuesAndPullsInBody(event: any, issueNumber: number) {
-  const context = event;
+export async function getAllLinkedIssuesAndPullsInBody(octokit: Octokit, repo: string, owner: string, issueNumber: number) {
   const logger = console;
 
-  const issue = await getIssueByNumber(context, issueNumber);
+  const issue = await getIssueByNumber(octokit, repo, owner, issueNumber);
 
   if (!issue) {
     return `Failed to fetch using issueNumber: ${issueNumber}`;
@@ -150,14 +146,14 @@ export async function getAllLinkedIssuesAndPullsInBody(event: any, issueNumber: 
 
       if (linkedPrs.length > 0) {
         for (let i = 0; i < linkedPrs.length; i++) {
-          const pr = await getPullByNumber(context, linkedPrs[i]);
+          const pr = await getPullByNumber(octokit, repo, owner, linkedPrs[i]);
           if (pr) {
             linkedPRStreamlined.push({
               login: "system",
               body: `=============== Pull Request #${pr.number}: ${pr.title} + ===============\n ${pr.body}}`,
             });
-            const prComments = await getAllIssueComments(context, linkedPrs[i]);
-            const prCommentsRaw = await getAllIssueComments(context, linkedPrs[i], "raw");
+            const prComments = await getAllIssueComments(octokit, repo, owner, linkedPrs[i]);
+            const prCommentsRaw = await getAllIssueComments(octokit, repo, owner, linkedPrs[i], "raw");
             prComments.forEach(async (comment, i) => {
               if (comment.user.type == UserType.User || prCommentsRaw[i].body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
                 linkedPRStreamlined.push({
@@ -172,14 +168,14 @@ export async function getAllLinkedIssuesAndPullsInBody(event: any, issueNumber: 
 
       if (linkedIssues.length > 0) {
         for (let i = 0; i < linkedIssues.length; i++) {
-          const issue = await getIssueByNumber(context, linkedIssues[i]);
+          const issue = await getIssueByNumber(octokit, repo, owner, linkedIssues[i]);
           if (issue) {
             linkedIssueStreamlined.push({
               login: "system",
               body: `=============== Issue #${issue.number}: ${issue.title} + ===============\n ${issue.body} `,
             });
-            const issueComments = await getAllIssueComments(context, linkedIssues[i]);
-            const issueCommentsRaw = await getAllIssueComments(context, linkedIssues[i], "raw");
+            const issueComments = await getAllIssueComments(octokit, repo, owner, linkedIssues[i]);
+            const issueCommentsRaw = await getAllIssueComments(octokit, repo, owner, linkedIssues[i], "raw");
             issueComments.forEach(async (comment, i) => {
               if (comment.user.type == UserType.User || issueCommentsRaw[i].body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
                 linkedIssueStreamlined.push({

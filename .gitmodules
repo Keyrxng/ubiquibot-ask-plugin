@@ -1,0 +1,10 @@
+[submodule "lib/@ubiquibot-kernel"]
+	path = lib/@ubiquibot-kernel
+	url = https://github.com/ubiquity/ubiquibot-kernel
+[submodule "lib/@ubiquibot-configuration"]
+	path = lib/@ubiquibot-configuration
+	url = https://github.com/ubiquibot/configuration
+[submodule "lib/@ubiquibot-kernel-keyrxng"]
+	path = lib/@ubiquibot-kernel-keyrxng
+	url = https://github.com/Keyrxng/ubiquibot-kernel
+	branch = plugins

@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import OpenAI from "openai";
 import { CreateChatCompletionRequestMessage } from "openai/resources/chat";
-import { errorDiff } from "../utils/errorDiff";
 import { getAllIssueComments, getAllLinkedIssuesAndPullsInBody } from "../utils/getIssueComments";
-import { StreamlinedComment, UserType } from "../types/response";
-import { configGenerator, BotConfig } from "@ubiquibot/configuration";
+import { StreamlinedComment, UbiquiBotConfig, UserType } from "../types/response";
+import { Octokit } from "octokit";
+import { getUbiquiBotConfig } from "../utils/helpers";
 
 export const sysMsg = `You are the UbiquityAI, designed to provide accurate technical answers. \n
 Whenever appropriate, format your response using GitHub Flavored Markdown. Utilize tables, lists, and code blocks for clear and organized answers. \n
@@ -62,25 +63,31 @@ Example:[
  * @param linkedIssueStreamlined an array of comments in the form of { login: string, body: string }
  */
 export async function decideContextGPT(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  event: unknown | any,
+  octokit: Octokit,
+  issue: Awaited<ReturnType<typeof octokit.rest.issues.get>>["data"],
   chatHistory: CreateChatCompletionRequestMessage[],
   streamlined: StreamlinedComment[],
   linkedPRStreamlined: StreamlinedComment[],
   linkedIssueStreamlined: StreamlinedComment[]
 ) {
   const logger = console;
-  const payload = event.payload;
-  const issue = payload.issue;
-
   if (!issue) {
     return `Payload issue is undefined`;
   }
 
+  const repo = issue.repository?.name;
+  const owner = issue.repository?.owner.login;
+
+  if (!repo || !owner) {
+    return `Repo or owner is undefined`;
+  }
+
+  const issueNumber = issue.number;
+
   // standard comments
-  const comments = await getAllIssueComments(event, issue.number);
+  const comments = await getAllIssueComments(octokit, repo, owner, issueNumber);
   // raw so we can grab the <!--- { 'UbiquityAI': 'answer' } ---> tag
-  const commentsRaw = await getAllIssueComments(event, issue.number, "raw");
+  const commentsRaw = await getAllIssueComments(octokit, repo, owner, issue.number, "raw");
 
   if (!comments) {
     logger.info(`Error getting issue comments`);
@@ -89,7 +96,7 @@ export async function decideContextGPT(
 
   // add the first comment of the issue/pull request
   streamlined.push({
-    login: issue.user.login,
+    login: issue.user?.login ?? "",
     body: issue.body ?? "",
   });
 
@@ -104,7 +111,7 @@ export async function decideContextGPT(
   });
 
   // returns the conversational context from all linked issues and prs
-  const links = await getAllLinkedIssuesAndPullsInBody(event, issue.number);
+  const links = await getAllLinkedIssuesAndPullsInBody(octokit, repo, owner, issue.number);
 
   if (typeof links === "string") {
     logger.info(`Error getting linked issues or prs: ${links}`);
@@ -133,7 +140,7 @@ export async function decideContextGPT(
   );
 
   // we'll use the first response to determine the context of future calls
-  return await askGPT("", chatHistory);
+  return await askGPT(octokit, owner, repo, chatHistory);
 }
 
 /**
@@ -141,13 +148,13 @@ export async function decideContextGPT(
  * @param question the question to ask
  * @param chatHistory the conversational context to provide to GPT
  */
-export async function askGPT(question: string, chatHistory: CreateChatCompletionRequestMessage[]) {
+export async function askGPT(octokit: Octokit, owner: string, repo: string, chatHistory: CreateChatCompletionRequestMessage[]) {
   const logger = console;
-  const config: BotConfig = await configGenerator();
+  const config: UbiquiBotConfig = await getUbiquiBotConfig(octokit, owner, repo);
 
   if (!config.keys.openAi) {
     logger.info(`No OpenAI API Key provided`);
-    return errorDiff("You must configure the `openai-api-key` property in the bot configuration in order to use AI powered features.");
+    throw new Error("You must configure the `openai-api-key` property in the bot configuration in order to use AI powered features.");
   }
 
   const openAI = new OpenAI({
@@ -169,8 +176,8 @@ export async function askGPT(question: string, chatHistory: CreateChatCompletion
   };
 
   if (!res) {
-    logger.info(`No answer found for question: ${question}`);
-    return `No answer found for question: ${question}`;
+    logger.info(`No answer found for question`);
+    return `No answer found for question`;
   }
 
   return { answer, tokenUsage };

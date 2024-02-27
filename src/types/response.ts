@@ -1,3 +1,5 @@
+import { GithubEventWebHookEvents } from "../../lib/@ubiquibot-kernel-keyrxng/src/github/types/webhook-events";
+
 export type StreamlinedComment = {
   login?: string;
   body?: string;
@@ -51,4 +53,51 @@ export enum UserType {
   User = "User",
   Bot = "Bot",
   Organization = "Organization",
+}
+
+// brought over the new config needed for plugins
+export type UbiquiBotConfig = {
+  keys: {
+    evmPrivateEncrypted: string;
+    openAi: string;
+  };
+  features: {
+    assistivePricing: boolean;
+    publicAccessControl: unknown;
+  };
+  payments: {
+    evmNetworkId: 1 | 100;
+    basePriceMultiplier: number;
+    issueCreatorMultiplier: number;
+    maxPermitPrice: number;
+  };
+  timers: {
+    reviewDelayTolerance: string;
+    taskStaleTimeoutDuration: string;
+    taskFollowUpDuration: string;
+    taskDisqualifyDuration: string;
+  };
+  miscellaneous: {
+    promotionComment: string;
+    maxConcurrentTasks: number;
+    registerWalletWithVerification: boolean;
+  };
+  disabledCommands: string[];
+  incentives: { comment: unknown };
+  labels: { time: string[]; priority: string[] };
+  plugins: Plugins;
+};
+
+type Plugins = {
+  event: GithubEventWebHookEvents[keyof GithubEventWebHookEvents];
+  plugins: Plugin[];
+}[];
+
+export interface Plugin {
+  name: string;
+  description: string;
+  command?: string;
+  example?: string;
+  uses: string[];
+  with?: string[];
 }

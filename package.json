@@ -28,6 +28,7 @@
   ],
   "dependencies": {
     "dotenv": "^16.3.1",
+    "js-yaml": "^4.1.0",
     "octokit": "^3.1.2",
     "openai": "^4.28.0"
   },
