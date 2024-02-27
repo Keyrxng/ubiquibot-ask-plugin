@@ -30,18 +30,22 @@ export async function getUbiquiBotConfig(octokit: Octokit, owner: string, repo: 
 }
 
 async function fetchConfig(octokit: Octokit, owner: string, repo: string): Promise<UbiquiBotConfig | null> {
-  const response = await octokit.rest.repos.getContent({
-    owner,
-    repo,
-    path: ".github/ubiquibot-config.yml",
-  });
-
-  // Check if the response data is a file and has a content property
-  if ("content" in response.data && typeof response.data.content === "string") {
-    // Convert the content from Base64 to string and parse the YAML content
-    const content = atob(response.data.content).toString();
-    return yaml.load(content) as UbiquiBotConfig;
-  } else {
+  try {
+    const response = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: ".github/ubiquibot-config.yml",
+    });
+    // Check if the response data is a file and has a content property
+    if ("content" in response.data && typeof response.data.content === "string") {
+      // Convert the content from Base64 to string and parse the YAML content
+      const content = atob(response.data.content).toString();
+      return yaml.load(content) as UbiquiBotConfig;
+    } else {
+      return null;
+    }
+  } catch (err) {
+    console.error(err);
     return null;
   }
 }
