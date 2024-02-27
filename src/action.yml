@@ -17,5 +17,13 @@ inputs:
     description: 'Organization name'
     required: true
 runs:
-  using: 'node20' 
-  main: 'index.ts'
+  using: 'composite'
+  steps:
+    - name: Run TypeScript file
+      run: tsx ./index.ts
+      env:
+        INPUT_BODY: ${{ inputs.body }}
+        INPUT_ISSUENUMBER: ${{ inputs.issueNumber }}
+        INPUT_SENDER: ${{ inputs.sender }}
+        INPUT_REPO: ${{ inputs.repo }}
+        INPUT_ORG: ${{ inputs.org }}
