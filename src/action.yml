@@ -20,7 +20,8 @@ runs:
   using: 'composite'
   steps:
     - name: Run TypeScript file
-      run: npx tsx ./index.ts
+      run: tsx ./index.ts
+      shell: bash
       env:
         INPUT_BODY: ${{ inputs.body }}
         INPUT_ISSUENUMBER: ${{ inputs.issueNumber }}
