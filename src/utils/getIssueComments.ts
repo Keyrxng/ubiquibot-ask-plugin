@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable sonarjs/no-duplicate-string */
 
-import { GitHubContext } from "ubiquibot-kernel";
 import { Comment, StreamlinedComment, UserType } from "../types/response";
+import { Context } from "../types/context";
 
 export function wait(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -25,26 +25,20 @@ export async function checkRateLimitGit(headers: { "x-ratelimit-remaining"?: str
   return remainingRequests;
 }
 
-export async function getAllIssueComments(event: any, issueNumber: number, format: "raw" | "html" | "text" | "full" = "raw"): Promise<Comment[]> {
-  const payload = event.payload;
-  const octokit = event.octokit;
-
-  if (!octokit) {
-    throw new Error("No octokit provided");
-  }
-
-  if (!payload) {
-    throw new Error("No payload provided");
-  }
-
+export async function getAllIssueComments(
+  context: Context,
+  repository: Context["payload"]["repository"],
+  issueNumber: number,
+  format: "raw" | "html" | "text" | "full" = "raw"
+): Promise<Comment[] | undefined> {
   const result: Comment[] = [];
   let shouldFetch = true;
   let pageNumber = 1;
   try {
     while (shouldFetch) {
-      const response = await octokit.rest.issues.listComments({
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
+      const response = await context.octokit.rest.issues.listComments({
+        owner: repository.owner.login,
+        repo: repository.name,
         issue_number: issueNumber,
         per_page: 100,
         page: pageNumber,
@@ -64,19 +58,16 @@ export async function getAllIssueComments(event: any, issueNumber: number, forma
     }
   } catch (e: unknown) {
     shouldFetch = false;
+    return result;
   }
-
-  return result;
 }
 
-export async function getIssueByNumber(event: GitHubContext<"issue_comment.created">, issueNumber: number) {
+export async function getIssueByNumber(context: Context, repository: Context["payload"]["repository"], issueNumber: number) {
   const logger = console;
-  const payload = event.payload;
-  const octokit = event.octokit;
   try {
-    const { data: issue } = await octokit.rest.issues.get({
-      owner: payload.repository.owner.login,
-      repo: payload.repository.name,
+    const { data: issue } = await context.octokit.rest.issues.get({
+      owner: repository.owner.login,
+      repo: repository.name,
       issue_number: issueNumber,
     });
     return issue;
@@ -86,13 +77,12 @@ export async function getIssueByNumber(event: GitHubContext<"issue_comment.creat
   }
 }
 
-export async function getPullByNumber(event: GitHubContext<"issue_comment.created">, pullNumber: number) {
+export async function getPullByNumber(context: Context, repository: Context["payload"]["repository"], pullNumber: number) {
   const logger = console;
-  const payload = event.payload;
   try {
-    const { data: pull } = await event.octokit.rest.pulls.get({
-      owner: payload.repository.owner.login,
-      repo: payload.repository.name,
+    const { data: pull } = await context.octokit.rest.pulls.get({
+      owner: repository.owner.login,
+      repo: repository.name,
       pull_number: pullNumber,
     });
     return pull;
@@ -104,18 +94,17 @@ export async function getPullByNumber(event: GitHubContext<"issue_comment.create
 
 // Strips out all links from the body of an issue or pull request and fetches the conversational context from each linked issue or pull request
 // eslint-disable-next-line sonarjs/cognitive-complexity
-export async function getAllLinkedIssuesAndPullsInBody(event: any, issueNumber: number) {
-  const context = event;
+export async function getAllLinkedIssuesAndPullsInBody(context: Context, repository: Context["payload"]["repository"], pullNumber: number) {
   const logger = console;
 
-  const issue = await getIssueByNumber(context, issueNumber);
+  const issue = await getIssueByNumber(context, repository, pullNumber);
 
   if (!issue) {
-    return `Failed to fetch using issueNumber: ${issueNumber}`;
+    return `Failed to fetch using issueNumber: ${pullNumber}`;
   }
 
   if (!issue.body) {
-    return `No body found for issue: ${issueNumber}`;
+    return `No body found for issue: ${pullNumber}`;
   }
 
   const body = issue.body;
@@ -150,16 +139,18 @@ export async function getAllLinkedIssuesAndPullsInBody(event: any, issueNumber: 
 
       if (linkedPrs.length > 0) {
         for (let i = 0; i < linkedPrs.length; i++) {
-          const pr = await getPullByNumber(context, linkedPrs[i]);
+          const pr = await getPullByNumber(context, repository, linkedPrs[i]);
           if (pr) {
             linkedPRStreamlined.push({
               login: "system",
               body: `=============== Pull Request #${pr.number}: ${pr.title} + ===============\n ${pr.body}}`,
             });
-            const prComments = await getAllIssueComments(context, linkedPrs[i]);
-            const prCommentsRaw = await getAllIssueComments(context, linkedPrs[i], "raw");
+            const prComments = await getAllIssueComments(context, repository, linkedPrs[i]);
+
+            if (!prComments) return;
+
             prComments.forEach(async (comment, i) => {
-              if (comment.user.type == UserType.User || prCommentsRaw[i].body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
+              if (comment.user.type == UserType.User || prComments[i].body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
                 linkedPRStreamlined.push({
                   login: comment.user.login,
                   body: comment.body,
@@ -172,16 +163,18 @@ export async function getAllLinkedIssuesAndPullsInBody(event: any, issueNumber: 
 
       if (linkedIssues.length > 0) {
         for (let i = 0; i < linkedIssues.length; i++) {
-          const issue = await getIssueByNumber(context, linkedIssues[i]);
+          const issue = await getIssueByNumber(context, repository, linkedPrs[i]);
           if (issue) {
             linkedIssueStreamlined.push({
               login: "system",
               body: `=============== Issue #${issue.number}: ${issue.title} + ===============\n ${issue.body} `,
             });
-            const issueComments = await getAllIssueComments(context, linkedIssues[i]);
-            const issueCommentsRaw = await getAllIssueComments(context, linkedIssues[i], "raw");
+            const issueComments = await getAllIssueComments(context, repository, linkedPrs[i]);
+
+            if (!issueComments) return;
+
             issueComments.forEach(async (comment, i) => {
-              if (comment.user.type == UserType.User || issueCommentsRaw[i].body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
+              if (comment.user.type == UserType.User || issueComments[i].body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
                 linkedIssueStreamlined.push({
                   login: comment.user.login,
                   body: comment.body,
