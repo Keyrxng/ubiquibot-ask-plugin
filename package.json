@@ -1,5 +1,5 @@
 {
-  "name": "@ubiquibot/research-plugin",
+  "name": "@ubiquibot-plugins/research-plugin",
   "version": "1.0.0",
   "description": "Template repository with TypeScript support.",
   "main": "src/index.ts",
