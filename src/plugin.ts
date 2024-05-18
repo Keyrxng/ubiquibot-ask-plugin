@@ -112,7 +112,6 @@ async function processComment(
 
   if (!comments) {
     console.info(`Error getting issue comments`);
-    return errorDiff(`Error getting issue comments`);
   }
 
   // add the first comment of the issue/pull request
@@ -122,7 +121,7 @@ async function processComment(
   });
 
   // add the rest
-  comments.forEach(async (comment) => {
+  comments?.forEach(async (comment) => {
     if (comment.user.type == UserType.User || comment.body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
       streamlined.push({
         login: comment.user.login,

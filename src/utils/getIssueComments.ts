@@ -27,13 +27,19 @@ export async function checkRateLimitGit(headers: { "x-ratelimit-remaining"?: str
 
 export async function getAllIssueComments(
   context: Context,
-  repository: Context["payload"]["repository"],
+  repository: Partial<Context["payload"]["repository"]>,
   issueNumber: number,
   format: "raw" | "html" | "text" | "full" = "raw"
 ): Promise<Comment[] | undefined> {
   const result: Comment[] = [];
   let shouldFetch = true;
   let pageNumber = 1;
+
+  if (!repository.owner || !repository.name) {
+    console.error(`Repository owner or name is missing`);
+    return;
+  }
+
   try {
     while (shouldFetch) {
       const response = await context.octokit.rest.issues.listComments({
@@ -48,7 +54,8 @@ export async function getAllIssueComments(
       });
 
       if (response?.data?.length > 0) {
-        response.data.forEach((item: unknown) => {
+        const { data } = response;
+        data.forEach((item: unknown) => {
           result.push(item as Comment);
         });
         pageNumber++;
@@ -58,36 +65,37 @@ export async function getAllIssueComments(
     }
   } catch (e: unknown) {
     shouldFetch = false;
-    return result;
   }
+
+  return result;
 }
 
-export async function getIssueByNumber(context: Context, repository: Context["payload"]["repository"], issueNumber: number) {
-  const logger = console;
+export async function getIssueByNumber(context: Context, repository: { owner: string; repo: string; issueNumber: number }) {
+  const { owner, repo, issueNumber } = repository;
   try {
     const { data: issue } = await context.octokit.rest.issues.get({
-      owner: repository.owner.login,
-      repo: repository.name,
+      owner,
+      repo,
       issue_number: issueNumber,
     });
     return issue;
   } catch (e: unknown) {
-    logger.debug(`Fetching issue failed! reason: ${e}`);
+    console.error(`Fetching issue failed! reason: `, e);
     return;
   }
 }
 
-export async function getPullByNumber(context: Context, repository: Context["payload"]["repository"], pullNumber: number) {
-  const logger = console;
+export async function getPullByNumber(context: Context, repository: { owner: string; repo: string; issueNumber: number }) {
+  const { owner, repo, issueNumber } = repository;
   try {
     const { data: pull } = await context.octokit.rest.pulls.get({
-      owner: repository.owner.login,
-      repo: repository.name,
-      pull_number: pullNumber,
+      owner,
+      repo,
+      pull_number: issueNumber,
     });
     return pull;
   } catch (error) {
-    logger.debug(`Fetching pull failed! reason: ${error}`);
+    console.error(`Fetching pull failed! reason: ${error}`);
     return;
   }
 }
@@ -97,7 +105,11 @@ export async function getPullByNumber(context: Context, repository: Context["pay
 export async function getAllLinkedIssuesAndPullsInBody(context: Context, repository: Context["payload"]["repository"], pullNumber: number) {
   const logger = console;
 
-  const issue = await getIssueByNumber(context, repository, pullNumber);
+  const issue = await getIssueByNumber(context, {
+    owner: repository.owner.login,
+    repo: repository.name,
+    issueNumber: pullNumber,
+  });
 
   if (!issue) {
     return `Failed to fetch using issueNumber: ${pullNumber}`;
@@ -116,8 +128,16 @@ export async function getAllLinkedIssuesAndPullsInBody(context: Context, reposit
 
   if (matches) {
     try {
-      const linkedIssues: number[] = [];
-      const linkedPrs: number[] = [];
+      const linkedIssues: {
+        owner: string;
+        repo: string;
+        issueNumber: number;
+      }[] = [];
+      const linkedPrs: {
+        owner: string;
+        repo: string;
+        issueNumber: number;
+      }[] = [];
 
       // this finds refs via all patterns: #<issue number>, full url or [#25](url.to.issue)
       const issueRef = issue.body.match(/(#(\d+)|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/(issues|pull)\/(\d+))/gi);
@@ -125,12 +145,19 @@ export async function getAllLinkedIssuesAndPullsInBody(context: Context, reposit
       // if they exist, strip out the # or the url and push them to their arrays
       if (issueRef) {
         issueRef.forEach((issue) => {
-          if (issue.includes("#")) {
-            linkedIssues.push(Number(issue.slice(1)));
-          } else {
-            if (issue.split("/")[5] == "pull") {
-              linkedPrs.push(Number(issue.split("/")[6]));
-            } else linkedIssues.push(Number(issue.split("/")[6]));
+          const [owner, repo, type, issueNumber] = issue.split("/").slice(-4);
+          if (type === "issues") {
+            linkedIssues.push({
+              owner,
+              repo,
+              issueNumber: parseInt(issueNumber),
+            });
+          } else if (type === "pull") {
+            linkedPrs.push({
+              owner,
+              repo,
+              issueNumber: parseInt(issueNumber),
+            });
           }
         });
       } else {
@@ -139,15 +166,27 @@ export async function getAllLinkedIssuesAndPullsInBody(context: Context, reposit
 
       if (linkedPrs.length > 0) {
         for (let i = 0; i < linkedPrs.length; i++) {
-          const pr = await getPullByNumber(context, repository, linkedPrs[i]);
+          const pr = await getPullByNumber(context, linkedPrs[i]);
+
           if (pr) {
             linkedPRStreamlined.push({
               login: "system",
               body: `=============== Pull Request #${pr.number}: ${pr.title} + ===============\n ${pr.body}}`,
             });
-            const prComments = await getAllIssueComments(context, repository, linkedPrs[i]);
+
+            const prComments = await getAllIssueComments(
+              context,
+              {
+                owner: {
+                  login: linkedPrs[i].owner,
+                },
+                name: linkedPrs[i].repo,
+              },
+              linkedPrs[i].issueNumber
+            );
 
             if (!prComments) return;
+            console.log({ prComments });
 
             prComments.forEach(async (comment, i) => {
               if (comment.user.type == UserType.User || prComments[i].body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
@@ -163,13 +202,22 @@ export async function getAllLinkedIssuesAndPullsInBody(context: Context, reposit
 
       if (linkedIssues.length > 0) {
         for (let i = 0; i < linkedIssues.length; i++) {
-          const issue = await getIssueByNumber(context, repository, linkedPrs[i]);
+          const issue = await getIssueByNumber(context, linkedIssues[i]);
           if (issue) {
             linkedIssueStreamlined.push({
               login: "system",
               body: `=============== Issue #${issue.number}: ${issue.title} + ===============\n ${issue.body} `,
             });
-            const issueComments = await getAllIssueComments(context, repository, linkedPrs[i]);
+            const issueComments = await getAllIssueComments(
+              context,
+              {
+                owner: {
+                  login: linkedIssues[i].owner,
+                },
+                name: linkedIssues[i].repo,
+              },
+              linkedIssues[i].issueNumber
+            );
 
             if (!issueComments) return;
 
