@@ -58,12 +58,12 @@ export async function getAllIssueComments(
     }
   } catch (e: unknown) {
     shouldFetch = false;
+    console.error(`Fetching comments failed! reason: `, e);
     return result;
   }
 }
 
 export async function getIssueByNumber(context: Context, repository: Context["payload"]["repository"], issueNumber: number) {
-  const logger = console;
   try {
     const { data: issue } = await context.octokit.rest.issues.get({
       owner: repository.owner.login,
@@ -72,13 +72,12 @@ export async function getIssueByNumber(context: Context, repository: Context["pa
     });
     return issue;
   } catch (e: unknown) {
-    logger.debug(`Fetching issue failed! reason: ${e}`);
+    console.error(`Fetching issue failed! reason: `, e);
     return;
   }
 }
 
 export async function getPullByNumber(context: Context, repository: Context["payload"]["repository"], pullNumber: number) {
-  const logger = console;
   try {
     const { data: pull } = await context.octokit.rest.pulls.get({
       owner: repository.owner.login,
@@ -87,7 +86,7 @@ export async function getPullByNumber(context: Context, repository: Context["pay
     });
     return pull;
   } catch (error) {
-    logger.debug(`Fetching pull failed! reason: ${error}`);
+    console.error(`Fetching pull failed! reason: ${error}`);
     return;
   }
 }
