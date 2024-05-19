@@ -15,47 +15,6 @@ Infer the context of the question from the Original Context using your best judg
 All replies MUST end with "\n\n <!--- { 'UbiquityAI': 'answer' } ---> ".\n
 `;
 
-const gptContextTemplate = `
-You are the UbiquityAI, designed to review and analyze pull requests.
-You have been provided with the spec of the issue and all linked issues or pull requests.
-Using this full context, Reply in pure JSON format, with the following structure omitting irrelevant information pertaining to the specification.
-You MUST provide the following structure, but you may add additional information if you deem it relevant.
-Example:[
-  {
-    "source": "issue #123"
-    "spec": "This is the issue spec"
-    "relevant": [
-      {
-        "login": "user",
-        "body": "This is the relevant context"
-        "relevancy": "Why is this relevant to the spec?"
-      },
-      {
-        "login": "other_user",
-        "body": "This is other relevant context"
-        "relevancy": "Why is this relevant to the spec?"
-      }
-    ]
-  },
-  {
-    "source": "Pull #456"
-    "spec": "This is the pull request spec"
-    "relevant": [
-      {
-        "login": "user",
-        "body": "This is the relevant context"
-        "relevancy": "Why is this relevant to the spec?"
-      },
-      {
-        "login": "other_user",
-        "body": "This is other relevant context"
-        "relevancy": "Why is this relevant to the spec?"
-      }
-    ]
-  }
-]
-`;
-
 /**
  * @notice best used alongside getAllLinkedIssuesAndPullsInBody() in helpers/issue
  * @param chatHistory the conversational context to provide to GPT
@@ -113,11 +72,6 @@ export async function decideContextGPT(
   linkedPRStreamlined = links.linkedPrs;
 
   chatHistory.push(
-    {
-      role: "system",
-      content: gptContextTemplate,
-      name: "UbiquityAI",
-    },
     {
       role: "user",
       content: "This issue/Pr context: \n" + JSON.stringify(streamlined),
