@@ -5,6 +5,7 @@ import { getAllIssueComments, getAllLinkedIssuesAndPullsInBody } from "../utils/
 import { StreamlinedComment, UserType } from "../types/response";
 import { Issue } from "@octokit/webhooks-types";
 import { Context } from "../types/context";
+import { addCommentToIssue } from "../utils/addComment";
 
 export const sysMsg = `You are the UbiquityAI, designed to provide accurate technical answers. \n
 Whenever appropriate, format your response using GitHub Flavored Markdown. Utilize tables, lists, and code blocks for clear and organized answers. \n
@@ -73,7 +74,8 @@ export async function decideContextGPT(
 ) {
   const logger = console;
   if (!issue) {
-    return `Payload issue is undefined`;
+    logger.info(`Error getting issue or pr`);
+    return;
   }
 
   // standard comments
@@ -81,7 +83,7 @@ export async function decideContextGPT(
 
   if (!comments) {
     logger.info(`Error getting issue comments`);
-    return `Error getting issue comments`;
+    return;
   }
 
   // add the first comment of the issue/pull request
@@ -105,7 +107,6 @@ export async function decideContextGPT(
 
   if (typeof links === "string" || !links) {
     logger.info(`Error getting linked issues or prs: ${links}`);
-    return `Error getting linked issues or prs: ${links}`;
   }
 
   linkedIssueStreamlined = links.linkedIssues;
@@ -144,14 +145,20 @@ export async function decideContextGPT(
  * @param chatHistory the conversational context to provide to GPT
  */
 export async function askGPT(context: Context, question: string, chatHistory: CreateChatCompletionRequestMessage[]) {
-  const key = context.config.keys.openAi;
-  if (!key) {
-    console.error(`No OpenAI API Key provided`);
-    return errorDiff("You must configure the `openai-api-key` property in the bot configuration in order to use AI powered features.");
+  const {
+    logger,
+    config: {
+      keys: { openAi },
+    },
+  } = context;
+  if (!openAi) {
+    logger.error(`No OpenAI API Key provided`);
+    await addCommentToIssue(context, errorDiff("No OpenAI API Key provided to the /reseach plugin."));
+    return;
   }
 
   const openAI = new OpenAI({
-    apiKey: key,
+    apiKey: openAi,
   });
 
   const res: OpenAI.Chat.Completions.ChatCompletion = await openAI.chat.completions.create({
@@ -170,7 +177,6 @@ export async function askGPT(context: Context, question: string, chatHistory: Cr
 
   if (!res) {
     console.info(`No answer found for question: ${question}`);
-    return `No answer found for question: ${question}`;
   }
 
   return { answer, tokenUsage };

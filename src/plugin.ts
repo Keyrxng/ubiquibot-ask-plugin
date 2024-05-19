@@ -75,40 +75,31 @@ export async function run() {
 }
 
 async function research(context: Context) {
-  const { payload, config } = context;
-  const sender = payload.sender;
-
-  const issue = payload.issue as (typeof payload)["issue"];
+  const { payload } = context;
   const body = payload.comment.body;
-  const repository = payload.repository;
-
-  const chatHistory: CreateChatCompletionRequestMessage[] = [];
-  const streamlined: StreamlinedComment[] = [];
-  const linkedPRStreamlined: StreamlinedComment[] = [];
-  const linkedIssueStreamlined: StreamlinedComment[] = [];
 
   const regex = /^\/research\s(.+)$/;
   const matches = body?.match(regex);
 
   if (matches) {
-    return await processComment(context, repository, issue, sender, chatHistory, streamlined, linkedPRStreamlined, linkedIssueStreamlined, config, matches);
-  } else {
-    return "Invalid syntax for research \n usage: '/research What is pi?";
+    return await processComment(context, matches);
   }
+
+  return "Invalid syntax for research \n usage: '/research What is pi?";
 }
 
-async function processComment(
-  context: Context,
-  repository: Context["payload"]["repository"],
-  issue: Context["payload"]["issue"],
-  sender: Context["payload"]["sender"],
-  chatHistory: CreateChatCompletionRequestMessage[],
-  streamlined: StreamlinedComment[],
-  linkedPRStreamlined: StreamlinedComment[],
-  linkedIssueStreamlined: StreamlinedComment[],
-  config: PluginInputs["settings"],
-  matches: RegExpMatchArray
-) {
+async function processComment(context: Context, matches: RegExpMatchArray) {
+  const { payload } = context;
+  const sender = payload.sender;
+
+  const issue = payload.issue as (typeof payload)["issue"];
+  const repository = payload.repository;
+
+  const chatHistory: CreateChatCompletionRequestMessage[] = [];
+  const streamlined: StreamlinedComment[] = [];
+  let linkedPRStreamlined: StreamlinedComment[] = [];
+  let linkedIssueStreamlined: StreamlinedComment[] = [];
+
   const { logger } = context;
   const [, body] = matches;
   // standard comments
@@ -170,7 +161,7 @@ async function processComment(
       },
       {
         role: "system",
-        content: "Original Context: " + JSON.stringify(gptDecidedContext), // provide the context
+        content: "Original Context: " + JSON.stringify(gptDecidedContext?.answer), // provide the context
         name: "system",
       },
       {
