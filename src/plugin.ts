@@ -62,15 +62,19 @@ export async function run() {
   const { disabledCommands } = context.config;
   const isCommandDisabled = disabledCommands.some((command: string) => command === "research");
   if (isCommandDisabled) {
-    console.info(`/research is disabled in this repository: ${inputs.eventPayload.repository.full_name}`);
+    context.logger.info(`/research is disabled in this repository: ${inputs.eventPayload.repository.full_name}`);
     await addCommentToIssue(context, "```diff\n# The /research command is disabled in this repository\n```");
     return;
   }
 
-  return await research(context);
+  const comment = await research(context);
+
+  await addCommentToIssue(context, comment);
+
+  return null;
 }
 
-export async function research(context: Context) {
+async function research(context: Context) {
   const { payload, config } = context;
   const sender = payload.sender;
 
@@ -89,7 +93,7 @@ export async function research(context: Context) {
   if (matches) {
     return await processComment(context, repository, issue, sender, chatHistory, streamlined, linkedPRStreamlined, linkedIssueStreamlined, config, matches);
   } else {
-    return "Invalid syntax for ask \n usage: '/research What is pi?";
+    return "Invalid syntax for research \n usage: '/research What is pi?";
   }
 }
 
@@ -105,13 +109,14 @@ async function processComment(
   config: PluginInputs["settings"],
   matches: RegExpMatchArray
 ) {
+  const { logger } = context;
   const [, body] = matches;
   // standard comments
   // raw so we can grab the <!--- { 'UbiquityAI': 'answer' } ---> tag
   const comments = await getAllIssueComments(context, repository, issue.number, "raw");
 
   if (!comments) {
-    console.info(`Error getting issue comments`);
+    logger.info(`Error getting issue comments`);
   }
 
   // add the first comment of the issue/pull request
@@ -134,7 +139,7 @@ async function processComment(
   const links = await getAllLinkedIssuesAndPullsInBody(context, repository, issue.number);
 
   if (typeof links === "string" || !links) {
-    console.info(`Error getting linked issues or prs: ${links}`);
+    logger.info(`Error getting linked issues or prs: ${links}`);
   } else {
     linkedIssueStreamlined = links.linkedIssues;
     linkedPRStreamlined = links.linkedPrs;
@@ -176,7 +181,7 @@ async function processComment(
     );
   }
 
-  const gptResponse = await askGPT(config, body, chatHistory);
+  const gptResponse = await askGPT(context, body, chatHistory);
 
   if (typeof gptResponse === "string") {
     return gptResponse;

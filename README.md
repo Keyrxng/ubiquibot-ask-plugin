@@ -10,7 +10,7 @@ To use this plugin, an end user must invoke the `/research` command. Any text fo
 
 ## [Configuration](/src/plugin-config.yml)
 
-To configure your Ubiquibot to run this plugin, add the following to your [`.ubiquibot-config.yml`](./.github/.ubiquibot-config.yml) file at either the organization or repository level:
+To configure your Ubiquibot to run this plugin, you must add the following to your [`.ubiquibot-config.yml`](./.github/.ubiquibot-config.yml) file at the organization level, this is due to the need for an OpenAi API key and your organization configuration should be private.
 
 ```yaml
 plugins:
@@ -20,11 +20,11 @@ plugins:
           name: Research
           id: research-command
           type: github
-          description: "Access a highly context-aware GPT-4 embedded directly into your issues and pull requests."
+          description: "Integrate a highly context-aware GPT LLM embedded directly into your issues and pull requests."
           command: "/research"
           example: "/research The spec for this issue is unclear. Can you explain it in simpler terms?"
           with:
             keys:
-              openAi: ""
+              openAi: "" # this is a secret, so only install this plugin config in your private org config repo
             disabledCommands: []
 ```

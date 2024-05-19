@@ -5,7 +5,6 @@ import { getAllIssueComments, getAllLinkedIssuesAndPullsInBody } from "../utils/
 import { StreamlinedComment, UserType } from "../types/response";
 import { Issue } from "@octokit/webhooks-types";
 import { Context } from "../types/context";
-import { ResearchSettings } from "../types/plugin-input";
 
 export const sysMsg = `You are the UbiquityAI, designed to provide accurate technical answers. \n
 Whenever appropriate, format your response using GitHub Flavored Markdown. Utilize tables, lists, and code blocks for clear and organized answers. \n
@@ -15,7 +14,7 @@ Infer the context of the question from the Original Context using your best judg
 All replies MUST end with "\n\n <!--- { 'UbiquityAI': 'answer' } ---> ".\n
 `;
 
-export const gptContextTemplate = `
+const gptContextTemplate = `
 You are the UbiquityAI, designed to review and analyze pull requests.
 You have been provided with the spec of the issue and all linked issues or pull requests.
 Using this full context, Reply in pure JSON format, with the following structure omitting irrelevant information pertaining to the specification.
@@ -115,23 +114,28 @@ export async function decideContextGPT(
   chatHistory.push(
     {
       role: "system",
+      content: gptContextTemplate,
+      name: "UbiquityAI",
+    },
+    {
+      role: "user",
       content: "This issue/Pr context: \n" + JSON.stringify(streamlined),
       name: "UbiquityAI",
-    } as CreateChatCompletionRequestMessage,
+    },
     {
-      role: "system",
+      role: "user",
       content: "Linked issue(s) context: \n" + JSON.stringify(linkedIssueStreamlined),
       name: "UbiquityAI",
-    } as CreateChatCompletionRequestMessage,
+    },
     {
-      role: "system",
+      role: "user",
       content: "Linked Pr(s) context: \n" + JSON.stringify(linkedPRStreamlined),
       name: "UbiquityAI",
-    } as CreateChatCompletionRequestMessage
+    }
   );
 
   // we'll use the first response to determine the context of future calls
-  return await askGPT(context.config, "", chatHistory);
+  return await askGPT(context, "", chatHistory);
 }
 
 /**
@@ -139,14 +143,15 @@ export async function decideContextGPT(
  * @param question the question to ask
  * @param chatHistory the conversational context to provide to GPT
  */
-export async function askGPT(config: ResearchSettings, question: string, chatHistory: CreateChatCompletionRequestMessage[]) {
-  if (!config.keys.openAi) {
+export async function askGPT(context: Context, question: string, chatHistory: CreateChatCompletionRequestMessage[]) {
+  const key = context.config.keys.openAi;
+  if (!key) {
     console.error(`No OpenAI API Key provided`);
     return errorDiff("You must configure the `openai-api-key` property in the bot configuration in order to use AI powered features.");
   }
 
   const openAI = new OpenAI({
-    apiKey: config.keys.openAi,
+    apiKey: key,
   });
 
   const res: OpenAI.Chat.Completions.ChatCompletion = await openAI.chat.completions.create({

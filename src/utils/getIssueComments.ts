@@ -4,39 +4,19 @@
 import { Comment, StreamlinedComment, UserType } from "../types/response";
 import { Context } from "../types/context";
 
-export function wait(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-export async function checkRateLimitGit(headers: { "x-ratelimit-remaining"?: string; "x-ratelimit-reset"?: string }) {
-  // Check the remaining limit
-  const remainingRequests = headers["x-ratelimit-remaining"] ? parseInt(headers["x-ratelimit-remaining"]) : 0;
-
-  // If there are no more remaining requests for this hour, we wait for the reset time
-  if (remainingRequests === 0) {
-    // const resetTime = new Date(parseInt(headers["x-ratelimit-reset"]! || "0") * 1000);
-    const resetTime = new Date((headers["x-ratelimit-reset"] ? parseInt(headers["x-ratelimit-reset"]) : 0) * 1000);
-    const now = new Date();
-    const timeToWait = resetTime.getTime() - now.getTime();
-    console.log(`No remaining requests. Waiting for ${timeToWait}ms...`);
-    await wait(timeToWait);
-  }
-
-  return remainingRequests;
-}
-
 export async function getAllIssueComments(
   context: Context,
   repository: Partial<Context["payload"]["repository"]>,
   issueNumber: number,
   format: "raw" | "html" | "text" | "full" = "raw"
 ): Promise<Comment[] | undefined> {
+  const { logger } = context;
   const result: Comment[] = [];
   let shouldFetch = true;
   let pageNumber = 1;
 
   if (!repository.owner || !repository.name) {
-    console.error(`Repository owner or name is missing`);
+    logger.error(`Repository owner or name is missing`);
     return;
   }
 
@@ -70,8 +50,9 @@ export async function getAllIssueComments(
   return result;
 }
 
-export async function getIssueByNumber(context: Context, repository: { owner: string; repo: string; issueNumber: number }) {
+async function getIssueByNumber(context: Context, repository: { owner: string; repo: string; issueNumber: number }) {
   const { owner, repo, issueNumber } = repository;
+  const { logger } = context;
   try {
     const { data: issue } = await context.octokit.rest.issues.get({
       owner,
@@ -80,13 +61,14 @@ export async function getIssueByNumber(context: Context, repository: { owner: st
     });
     return issue;
   } catch (e: unknown) {
-    console.error(`Fetching issue failed! reason: `, e);
+    logger.error(`Fetching issue failed! reason: `, e);
     return;
   }
 }
 
-export async function getPullByNumber(context: Context, repository: { owner: string; repo: string; issueNumber: number }) {
+async function getPullByNumber(context: Context, repository: { owner: string; repo: string; issueNumber: number }) {
   const { owner, repo, issueNumber } = repository;
+  const { logger } = context;
   try {
     const { data: pull } = await context.octokit.rest.pulls.get({
       owner,
@@ -95,7 +77,7 @@ export async function getPullByNumber(context: Context, repository: { owner: str
     });
     return pull;
   } catch (error) {
-    console.error(`Fetching pull failed! reason: ${error}`);
+    logger.error(`Fetching pull failed! reason: ${error}`);
     return;
   }
 }
@@ -103,7 +85,7 @@ export async function getPullByNumber(context: Context, repository: { owner: str
 // Strips out all links from the body of an issue or pull request and fetches the conversational context from each linked issue or pull request
 // eslint-disable-next-line sonarjs/cognitive-complexity
 export async function getAllLinkedIssuesAndPullsInBody(context: Context, repository: Context["payload"]["repository"], pullNumber: number) {
-  const logger = console;
+  const { logger } = context;
 
   const issue = await getIssueByNumber(context, {
     owner: repository.owner.login,
@@ -186,8 +168,6 @@ export async function getAllLinkedIssuesAndPullsInBody(context: Context, reposit
             );
 
             if (!prComments) return;
-            console.log({ prComments });
-
             prComments.forEach(async (comment, i) => {
               if (comment.user.type == UserType.User || prComments[i].body.includes("<!--- { 'UbiquityAI': 'answer' } --->")) {
                 linkedPRStreamlined.push({
